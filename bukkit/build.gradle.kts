@@ -13,6 +13,10 @@ repositories {
         name = "paper"
         url = uri("https://papermc.io/repo/repository/maven-public/")
     }
+    maven {
+        name = "arim-mvn-lgpl3"
+        url = uri("https://mvn-repo.arim.space/lesser-gpl3/")
+    }
 }
 
 configurations {
@@ -23,6 +27,8 @@ dependencies {
     "compileOnly"("io.papermc.paper:paper-api:1.18.2-R0.1-SNAPSHOT")
     "api"(project(":nuvotifier-api"))
     "api"(project(":nuvotifier-common"))
+    // MorePaperLib provides Folia-compatible scheduling; shaded into the plugin jar
+    "shadeOnly"("space.arim.morepaperlib:morepaperlib:0.4.3")
 }
 
 
@@ -48,7 +54,10 @@ tasks.named<ShadowJar>("shadowJar") {
     dependencies {
         include(dependency(":nuvotifier-api"))
         include(dependency(":nuvotifier-common"))
+        include(dependency("space.arim.morepaperlib:morepaperlib:.*"))
     }
+    // Relocate MorePaperLib to avoid conflicts with other plugins that shade it
+    relocate("space.arim.morepaperlib", "com.vexsoftware.votifier.libs.morepaperlib")
 }
 
 tasks.named("assemble").configure {

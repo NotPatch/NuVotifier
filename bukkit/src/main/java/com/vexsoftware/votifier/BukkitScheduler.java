@@ -2,35 +2,37 @@ package com.vexsoftware.votifier;
 
 import com.vexsoftware.votifier.platform.scheduler.ScheduledVotifierTask;
 import com.vexsoftware.votifier.platform.scheduler.VotifierScheduler;
-import org.bukkit.scheduler.BukkitTask;
+import space.arim.morepaperlib.scheduling.GracefulScheduling;
+import space.arim.morepaperlib.scheduling.ScheduledTask;
 
+import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
+// Uses MorePaperLib to ensure compatibility with Folia, Paper, and Paper forks
 class BukkitScheduler implements VotifierScheduler {
-    private final NuVotifierBukkit plugin;
+    private final GracefulScheduling scheduling;
 
-    public BukkitScheduler(NuVotifierBukkit plugin) {
-        this.plugin = plugin;
-    }
-
-    private int toTicks(int time, TimeUnit unit) {
-        return (int) (unit.toMillis(time) / 50);
+    public BukkitScheduler(GracefulScheduling scheduling) {
+        this.scheduling = scheduling;
     }
 
     @Override
     public ScheduledVotifierTask delayedOnPool(Runnable runnable, int delay, TimeUnit unit) {
-        return new BukkitTaskWrapper(plugin.getServer().getScheduler().runTaskLaterAsynchronously(plugin, runnable, toTicks(delay, unit)));
+        Duration duration = Duration.ofMillis(unit.toMillis(delay));
+        return new MorePaperLibTaskWrapper(scheduling.asyncScheduler().runDelayed(runnable, duration));
     }
 
     @Override
     public ScheduledVotifierTask repeatOnPool(Runnable runnable, int delay, int repeat, TimeUnit unit) {
-        return new BukkitTaskWrapper(plugin.getServer().getScheduler().runTaskTimerAsynchronously(plugin, runnable, toTicks(delay, unit), toTicks(repeat, unit)));
+        Duration initialDelay = Duration.ofMillis(unit.toMillis(delay));
+        Duration period = Duration.ofMillis(unit.toMillis(repeat));
+        return new MorePaperLibTaskWrapper(scheduling.asyncScheduler().runAtFixedRate(runnable, initialDelay, period));
     }
 
-    private static class BukkitTaskWrapper implements ScheduledVotifierTask {
-        private final BukkitTask task;
+    private static class MorePaperLibTaskWrapper implements ScheduledVotifierTask {
+        private final ScheduledTask task;
 
-        private BukkitTaskWrapper(BukkitTask task) {
+        private MorePaperLibTaskWrapper(ScheduledTask task) {
             this.task = task;
         }
 

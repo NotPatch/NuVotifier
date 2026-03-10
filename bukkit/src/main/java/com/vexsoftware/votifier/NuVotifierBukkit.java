@@ -40,6 +40,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
+import space.arim.morepaperlib.MorePaperLib;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -84,19 +85,12 @@ public class NuVotifierBukkit extends JavaPlugin implements VoteHandler, Votifie
     private ForwardingVoteSink forwardingMethod;
     private VotifierScheduler scheduler;
     private LoggingAdapter pluginLogger;
-    private boolean isFolia;
+    // MorePaperLib ensures Folia-compatible scheduling on Paper, Spigot, and Folia/Canvas forks
+    private MorePaperLib morePaperLib;
 
     private boolean loadAndBind() {
-        try {
-            Class.forName("io.papermc.paper.threadedregions.scheduler.AsyncScheduler");
-            isFolia = true;
-
-            getLogger().info("Using Folia; VotifierEvent will be fired asynchronously.");
-        } catch (ClassNotFoundException e) {
-            isFolia = false;
-        }
-
-        scheduler = new BukkitScheduler(this);
+        morePaperLib = new MorePaperLib(this);
+        scheduler = new BukkitScheduler(morePaperLib.scheduling());
         pluginLogger = new JavaUtilLogger(getLogger());
         if (!getDataFolder().exists()) {
             if (!getDataFolder().mkdir()) {
@@ -380,14 +374,15 @@ public class NuVotifierBukkit extends JavaPlugin implements VoteHandler, Votifie
             getLogger().log(Level.SEVERE, "a list of listeners you can configure.");
         }
 
-        if (!isFolia) {
-            getServer().getScheduler().runTask(
-                    this, () -> getServer().getPluginManager().callEvent(new VotifierEvent(vote))
-            );
-        } else {
-            getServer().getScheduler().runTaskAsynchronously(
-                    this, () -> getServer().getPluginManager().callEvent(new VotifierEvent(vote, true))
-            );
-        }
+        // Use MorePaperLib to safely dispatch VotifierEvent on the server thread (or global region on
+        // Folia). This ensures compatibility with Folia, Paper, and Paper forks like Canvas without
+        // throwing UnsupportedOperationException from Bukkit.getScheduler().
+        morePaperLib.scheduling().globalRegionalScheduler().run(() -> {
+            try {
+                getServer().getPluginManager().callEvent(new VotifierEvent(vote));
+            } catch (Throwable t) {
+                getLogger().log(Level.SEVERE, "Failed to process vote", t);
+            }
+        });
     }
 }
