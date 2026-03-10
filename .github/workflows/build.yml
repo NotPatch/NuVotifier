@@ -1,0 +1,59 @@
+name: Build Plugin
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Detect build tool
+        id: detect
+        run: |
+          if [ -f "gradlew" ]; then
+            echo "tool=gradle" >> "$GITHUB_OUTPUT"
+          elif [ -f "pom.xml" ]; then
+            echo "tool=maven" >> "$GITHUB_OUTPUT"
+          else
+            echo "tool=unknown" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Make gradlew executable
+        if: steps.detect.outputs.tool == 'gradle'
+        run: chmod +x gradlew
+
+      - name: Build with Gradle
+        if: steps.detect.outputs.tool == 'gradle'
+        run: ./gradlew build
+
+      - name: Build with Maven
+        if: steps.detect.outputs.tool == 'maven'
+        run: mvn clean package
+
+      - name: Upload artifact (Gradle)
+        if: steps.detect.outputs.tool == 'gradle'
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-jar-gradle
+          path: build/libs/*.jar
+
+      - name: Upload artifact (Maven)
+        if: steps.detect.outputs.tool == 'maven'
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-jar-maven
+          path: target/*.jar
